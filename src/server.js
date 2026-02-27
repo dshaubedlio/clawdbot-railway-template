@@ -1456,7 +1456,34 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
 
 server.on("upgrade", async (req, socket, head) => {
   // --- WebSocket password protection ---
-  if (SETUP_PASSWORD) {
+  // OpenClaw nodes authenticate via the gateway's own protocol (token + device
+  // pairing + challenge-nonce). They don't send HTTP Basic auth. Bypass the
+  // wrapper's Basic auth for these connections.
+  let bypassBasicAuth = false;
+
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  if (ua.includes("openclaw") || ua.includes("clawdbot") || ua.includes("moltbot")) {
+    bypassBasicAuth = true;
+  }
+
+  if (!bypassBasicAuth && OPENCLAW_GATEWAY_TOKEN) {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      if (url.searchParams.get("token") === OPENCLAW_GATEWAY_TOKEN) {
+        bypassBasicAuth = true;
+      }
+    } catch {}
+
+    if (!bypassBasicAuth) {
+      const header = req.headers.authorization || "";
+      const [scheme, token] = header.split(" ");
+      if (scheme === "Bearer" && token === OPENCLAW_GATEWAY_TOKEN) {
+        bypassBasicAuth = true;
+      }
+    }
+  }
+
+  if (!bypassBasicAuth && SETUP_PASSWORD) {
     const header = req.headers.authorization || "";
     const [scheme, encoded] = header.split(" ");
     let authed = false;
