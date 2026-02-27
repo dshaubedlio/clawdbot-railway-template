@@ -1458,53 +1458,15 @@ server.on("upgrade", async (req, socket, head) => {
   const ua = (req.headers["user-agent"] || "");
   console.log(`[ws-upgrade] url=${req.url} ua=${ua.slice(0, 80)}`);
 
-  // --- WebSocket password protection ---
-  // OpenClaw nodes authenticate via the gateway's own protocol (token + device
-  // pairing + challenge-nonce). They don't send HTTP Basic auth. Bypass the
-  // wrapper's Basic auth for these connections.
-  let bypassBasicAuth = false;
-
-  const uaLower = ua.toLowerCase();
-  if (uaLower.includes("openclaw") || uaLower.includes("clawdbot") || uaLower.includes("moltbot")) {
-    bypassBasicAuth = true;
-    console.log("[ws-upgrade] bypass: user-agent match");
-  }
-
-  if (!bypassBasicAuth && OPENCLAW_GATEWAY_TOKEN) {
-    try {
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      if (url.searchParams.get("token") === OPENCLAW_GATEWAY_TOKEN) {
-        bypassBasicAuth = true;
-        console.log("[ws-upgrade] bypass: query token match");
-      }
-    } catch {}
-
-    if (!bypassBasicAuth) {
-      const header = req.headers.authorization || "";
-      const [scheme, token] = header.split(" ");
-      if (scheme === "Bearer" && token === OPENCLAW_GATEWAY_TOKEN) {
-        bypassBasicAuth = true;
-        console.log("[ws-upgrade] bypass: bearer token match");
-      }
-    }
-  }
-
-  if (!bypassBasicAuth && SETUP_PASSWORD) {
-    const header = req.headers.authorization || "";
-    const [scheme, encoded] = header.split(" ");
-    let authed = false;
-    if (scheme === "Basic" && encoded) {
-      const decoded = Buffer.from(encoded, "base64").toString("utf8");
-      const idx = decoded.indexOf(":");
-      const password = idx >= 0 ? decoded.slice(idx + 1) : "";
-      authed = password === SETUP_PASSWORD;
-    }
-    if (!authed) {
-      console.log("[ws-upgrade] REJECTED: basic auth failed");
-      socket.destroy();
-      return;
-    }
-  }
+  // --- WebSocket auth ---
+  // The OpenClaw gateway handles its own authentication for WebSocket connections
+  // (token + device pairing + challenge-nonce). Nodes, CLI tools, and other clients
+  // may not send HTTP Basic auth or a recognizable User-Agent.
+  //
+  // Strategy: bypass the wrapper's Basic auth for all WebSocket upgrades and let
+  // the gateway enforce its own auth. The SETUP_PASSWORD protects the HTTP dashboard
+  // but should not block WebSocket traffic destined for the gateway.
+  console.log("[ws-upgrade] bypassing wrapper auth (gateway handles ws auth)");
 
   if (!isConfigured()) {
     console.log("[ws-upgrade] REJECTED: not configured");
