@@ -297,7 +297,9 @@ function requireSetupAuth(req, res, next) {
 
 const app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
+// Only parse JSON bodies for /setup routes. Proxied paths (hooks, Control UI, etc.)
+// must NOT have their body consumed — http-proxy needs the raw stream to forward it.
+app.use("/setup", express.json({ limit: "1mb" }));
 
 // Minimal health endpoint for Railway.
 app.get("/setup/healthz", (_req, res) => res.json({ ok: true }));
