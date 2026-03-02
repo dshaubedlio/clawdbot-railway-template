@@ -1333,6 +1333,8 @@ proxy.on("error", (err, _req, res) => {
 // not just the /setup routes.  Healthcheck is excluded so Railway probes work.
 function requireDashboardAuth(req, res, next) {
   if (req.path === "/healthz" || req.path === "/setup/healthz") return next();
+  // Let webhook/hooks requests pass through — OpenClaw gateway validates its own Bearer token.
+  if (req.path.startsWith("/hooks/") || req.path === "/hooks") return next();
   if (!SETUP_PASSWORD) return next(); // no password configured → open
   const header = req.headers.authorization || "";
   const [scheme, encoded] = header.split(" ");
